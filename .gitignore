@@ -1,0 +1,15 @@
+# 環境変数（機密情報）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 一時ファイル・音声データ
+temp_voice/
+output/
+*.wav
+*.m4a

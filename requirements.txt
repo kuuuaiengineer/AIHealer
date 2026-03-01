@@ -1,0 +1,18 @@
+# Web フレームワーク
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# LINE Bot SDK
+line-bot-sdk>=3.0.0
+
+# HTTP クライアント（LINE API からの音声取得用）
+httpx>=0.26.0
+
+# 音声処理
+pydub>=0.25.1
+
+# Cloudinary
+cloudinary>=1.36.0
+
+# 環境変数（オプション、Railway では環境変数で設定可能）
+python-dotenv>=1.0.0

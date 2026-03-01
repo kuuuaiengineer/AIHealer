@@ -1,0 +1,8 @@
+# Railway (Nixpacks) ビルド設定
+# pydub が m4a → wav 変換に ffmpeg を使用するため必須
+
+# pydub の m4a → wav 変換に ffmpeg が必要
+# Python 3.10 を使用（audioop が 3.13 で削除されたため）
+# '...' はデフォルトパッケージを維持
+[phases.setup]
+nixPkgs = ["python310", "ffmpeg"]
