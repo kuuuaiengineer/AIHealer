@@ -89,21 +89,38 @@ async def webhook(request: Request):
     return "OK"
 
 
+def _is_audio_message(msg) -> bool:
+    """音声メッセージかどうかを判定。SDK の型・type 属性の両方に対応。"""
+    if isinstance(msg, AudioMessageContent):
+        return True
+    t = getattr(msg, "type", None)
+    return t == "audio" or str(t) == "audio"
+
+
+def _is_text_message(msg) -> bool:
+    """テキストメッセージかどうかを判定。"""
+    if isinstance(msg, TextMessageContent):
+        return True
+    t = getattr(msg, "type", None)
+    return t == "text" or str(t) == "text"
+
+
 @handler.add(MessageEvent)
 def handle_message(event: MessageEvent):
     """
     メッセージイベント受信時、メッセージタイプに応じて振り分ける。
-    デコレータの message フィルタを使わず、内部で isinstance で判定するため、
-    SDK の型マッチング問題を回避できる。
+    isinstance と type 属性の両方で判定し、SDK のパース差異に対応。
     """
     msg = event.message
+    msg_type = getattr(msg, "type", None)
+    logger.info("Received message: class=%s, type=%s", type(msg).__name__, msg_type)
 
-    if isinstance(msg, AudioMessageContent):
+    if _is_audio_message(msg):
         _handle_audio(event)
-    elif isinstance(msg, TextMessageContent):
+    elif _is_text_message(msg):
         _handle_text(event)
     else:
-        logger.info("Unhandled message type: %s", type(msg).__name__)
+        logger.info("Unhandled message type: %s, type attr: %s", type(msg).__name__, msg_type)
         _reply_text(
             event.reply_token,
             "音声またはテキストメッセージをお送りください。",
