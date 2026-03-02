@@ -15,6 +15,7 @@ from linebot.v3.webhooks import (
     MessageEvent,
     AudioMessageContent,
     TextMessageContent,
+    FileMessageContent,
 )
 from linebot.v3.messaging import (
     Configuration,
@@ -37,7 +38,7 @@ from utils import (
     ensure_directories,
     get_audio_duration_ms,
     get_line_audio_content,
-    m4a_to_wav,
+    audio_to_wav,
     upload_to_cloudinary,
 )
 from tts_engine import TTSEngine
@@ -105,6 +106,24 @@ def _is_text_message(msg) -> bool:
     return t == "text" or str(t) == "text"
 
 
+def _is_file_message(msg) -> bool:
+    """ファイルメッセージかどうかを判定。m4a 等の音声ファイル送信時に type=file になる。"""
+    if isinstance(msg, FileMessageContent):
+        return True
+    t = getattr(msg, "type", None)
+    return t == "file" or str(t) == "file"
+
+
+def _get_audio_extension_from_file_message(msg) -> str:
+    """FileMessageContent から音声ファイルの拡張子を取得。"""
+    name = getattr(msg, "file_name", None) or getattr(msg, "fileName", None) or ""
+    if isinstance(name, str) and "." in name:
+        ext = "." + name.rsplit(".", 1)[-1].lower()
+        if ext in (".m4a", ".mp3", ".wav", ".aac", ".mp4", ".ogg"):
+            return ext
+    return ".m4a"
+
+
 @handler.add(MessageEvent)
 def handle_message(event: MessageEvent):
     """
@@ -116,7 +135,11 @@ def handle_message(event: MessageEvent):
     logger.info("Received message: class=%s, type=%s", type(msg).__name__, msg_type)
 
     if _is_audio_message(msg):
-        _handle_audio(event)
+        _handle_audio(event, input_suffix=".m4a")
+    elif _is_file_message(msg):
+        # m4a 等をファイルとして送った場合は type=file になる
+        ext = _get_audio_extension_from_file_message(msg)
+        _handle_audio(event, input_suffix=ext)
     elif _is_text_message(msg):
         _handle_text(event)
     else:
@@ -133,12 +156,14 @@ def default_handler(event):
     logger.info("Unhandled event type: %s", type(event).__name__)
 
 
-def _handle_audio(event: MessageEvent):
+def _handle_audio(event: MessageEvent, input_suffix: str = ".m4a"):
     """
     音声メッセージ受信時:
     1. LINE からバイナリを取得
-    2. m4a → wav に変換
+    2. 音声ファイル → wav に変換
     3. temp_voice/user_id.wav として保存（リファレンス音声登録）
+
+    input_suffix: 拡張子（.m4a, .mp3 等）。m4a 送信時は .m4a、ファイル送信時は fileName から取得
     """
     user_id = event.source.user_id
     message_id = event.message.id
@@ -147,14 +172,14 @@ def _handle_audio(event: MessageEvent):
         ensure_directories()
         audio_bytes = get_line_audio_content(message_id, LINE_CHANNEL_ACCESS_TOKEN)
 
-        # 一時的に m4a で保存
-        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp:
+        # 一時ファイルに保存（拡張子で pydub が形式を判定）
+        with tempfile.NamedTemporaryFile(suffix=input_suffix, delete=False) as tmp:
             tmp.write(audio_bytes)
-            m4a_path = Path(tmp.name)
+            input_path = Path(tmp.name)
 
         ref_path = TEMP_VOICE_DIR / f"{user_id}.wav"
-        m4a_to_wav(m4a_path, ref_path)
-        m4a_path.unlink(missing_ok=True)
+        audio_to_wav(input_path, ref_path, format=None)
+        input_path.unlink(missing_ok=True)
 
         logger.info("Saved reference voice: %s", ref_path)
 

@@ -59,7 +59,28 @@ def m4a_to_wav(input_path: Path, output_path: Path) -> Path:
     Returns:
         変換後のファイルパス
     """
-    audio = AudioSegment.from_file(str(input_path), format="m4a")
+    return audio_to_wav(input_path, output_path, format="m4a")
+
+
+def audio_to_wav(
+    input_path: Path, output_path: Path, format: str | None = None
+) -> Path:
+    """
+    音声ファイルをwav形式に変換する。
+    m4a, mp3, wav 等に対応。format 省略時は拡張子から自動判定。
+
+    Args:
+        input_path: 入力ファイルパス
+        output_path: 出力ファイルパス（.wav）
+        format: 入力形式（"m4a", "mp3" 等）。None の場合は拡張子から判定
+
+    Returns:
+        変換後のファイルパス
+    """
+    if format:
+        audio = AudioSegment.from_file(str(input_path), format=format)
+    else:
+        audio = AudioSegment.from_file(str(input_path))
     # モノラル、16kHz、16bitに正規化（多くのTTSエンジンで推奨）
     audio = audio.set_channels(1)
     audio = audio.set_frame_rate(16000)
