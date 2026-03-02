@@ -89,8 +89,34 @@ async def webhook(request: Request):
     return "OK"
 
 
-@handler.add(MessageEvent, message=AudioMessageContent)
-def handle_audio(event: MessageEvent):
+@handler.add(MessageEvent)
+def handle_message(event: MessageEvent):
+    """
+    メッセージイベント受信時、メッセージタイプに応じて振り分ける。
+    デコレータの message フィルタを使わず、内部で isinstance で判定するため、
+    SDK の型マッチング問題を回避できる。
+    """
+    msg = event.message
+
+    if isinstance(msg, AudioMessageContent):
+        _handle_audio(event)
+    elif isinstance(msg, TextMessageContent):
+        _handle_text(event)
+    else:
+        logger.info("Unhandled message type: %s", type(msg).__name__)
+        _reply_text(
+            event.reply_token,
+            "音声またはテキストメッセージをお送りください。",
+        )
+
+
+@handler.default()
+def default_handler(event):
+    """どのハンドラにもマッチしなかったイベント用。ログ出力のみ。"""
+    logger.info("Unhandled event type: %s", type(event).__name__)
+
+
+def _handle_audio(event: MessageEvent):
     """
     音声メッセージ受信時:
     1. LINE からバイナリを取得
@@ -123,8 +149,7 @@ def handle_audio(event: MessageEvent):
     _reply_text(event.reply_token, reply_text)
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_text(event: MessageEvent):
+def _handle_text(event: MessageEvent):
     """
     テキストメッセージ受信時:
     1. user_id.wav を読み込み
