@@ -11,5 +11,8 @@ venv/
 # 一時ファイル・音声データ
 temp_voice/
 output/
-*.wav
+data/
 *.m4a
+
+# reference_voice の host.wav はコミット可（デプロイに含める場合）
+# 個人の声を使う場合は .gitignore に reference_voice/host.wav を追加

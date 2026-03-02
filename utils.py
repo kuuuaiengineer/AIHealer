@@ -12,7 +12,6 @@ from config import (
     CLOUDINARY_CLOUD_NAME,
     CLOUDINARY_API_KEY,
     CLOUDINARY_API_SECRET,
-    TEMP_VOICE_DIR,
     OUTPUT_DIR,
 )
 
@@ -43,7 +42,6 @@ def get_line_audio_content(message_id: str, channel_access_token: str) -> bytes:
 
 def ensure_directories() -> None:
     """必要なディレクトリが存在することを保証する。"""
-    TEMP_VOICE_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

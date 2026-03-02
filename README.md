@@ -1,32 +1,40 @@
 # AIDelusion - LINE ボイスクローン Bot
 
-**ホスト**が送った音声を登録し、**ゲスト**が送ったテキストをホストの声で読み上げて返信する Bot です。
+**reference_voice/** フォルダに配置した音声ファイルの声質で、ゲストが送ったテキストを読み上げて返信する Bot です。
 
-- ホスト: 音声を送って自分の声を登録
-- ゲスト: テキストを送ると、ホストの声で読み上げた音声が返ってくる
+- **カスタマーからの音声送信は不要**
+- プロジェクトフォルダに `reference_voice/host.wav` を事前配置
+- ゲストがテキストを送ると、その声で読み上げた音声が返る
 
 ## セットアップ
 
-### 1. 環境変数
+### 1. 参照音声の配置
+
+`reference_voice/` フォルダに **host.wav**（または host.m4a / host.mp3）を配置してください。
+
+- 30秒程度のクリアな音声を推奨
+- この声質でゲストのテキストが読み上げられます
+
+### 2. 環境変数
 
 `.env.example` を `.env` にコピーし、各値を設定してください。
 
 - **LINE**: [LINE Developers Console](https://developers.line.biz/) でチャネルを作成し、トークンを取得
 - **Cloudinary**: [Cloudinary](https://cloudinary.com/) でアカウント作成し、認証情報を取得
 
-### 2. 依存関係
+### 3. 依存関係
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. ローカル実行
+### 4. ローカル実行
 
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-### 4. Railway デプロイ
+### 5. Railway デプロイ
 
 #### 前提条件
 
@@ -37,8 +45,9 @@ uvicorn main:app --reload --port 8000
 
 #### Step 1: GitHub にコードをプッシュ
 
-1. [GitHub](https://github.com/) で新規リポジトリを作成
-2. ローカルで以下を実行：
+1. `reference_voice/host.wav` を配置しておく（リポジトリに含めてデプロイされる）
+2. [GitHub](https://github.com/) で新規リポジトリを作成
+3. ローカルで以下を実行：
 
    ```bash
    git init
@@ -110,9 +119,9 @@ uvicorn main:app --reload --port 8000
 
 #### Step 6: 動作確認
 
-1. LINE アプリで Bot を友だち追加
-2. 30秒程度の音声メッセージを送信 → 「音声を登録しました」と返ってくれば OK
-3. 続けてテキストを送信 → 音声で返信されれば完了
+1. `reference_voice/host.wav` を配置した状態でデプロイしていることを確認
+2. LINE アプリで Bot を友だち追加
+3. テキストを送信 → 音声で返信されれば完了
 
 ---
 
@@ -126,16 +135,14 @@ uvicorn main:app --reload --port 8000
 
 ## 音声合成エンジン（TTS）
 
-**Coqui TTS (XTTS-v2)** を使用したボイスクローンを実装しています。初回のテキスト送信時にモデルがダウンロードされます（約 1.8GB）。
-
-- **Railway**: メモリ 1GB 以上を推奨。無料枠では不足する場合があります。
-- **ローカル**: `pip install -r requirements.txt` で TTS がインストールされます。
+現在は **モック実装**（参照音声をそのまま返す）で、Railway のビルドを軽量化しています。実 TTS（Coqui TTS 等）を使う場合は `tts_engine.py` を置き換えてください。
 
 ## ファイル構成
 
 | ファイル | 説明 |
 |----------|------|
 | `main.py` | FastAPI エンドポイント・LINE Webhook 処理 |
-| `tts_engine.py` | 音声合成（クローン）ロジック |
-| `utils.py` | m4a→wav 変換、Cloudinary アップロード、LINE 音声取得 |
+| `tts_engine.py` | 音声合成ロジック（モック） |
+| `utils.py` | 音声変換、Cloudinary アップロード |
 | `config.py` | 環境変数・パス設定 |
+| `reference_voice/` | 参照音声（host.wav 等）を配置するフォルダ |
