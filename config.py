@@ -23,3 +23,6 @@ _DEFAULT_BASE = "/tmp" if os.name != "nt" else str(Path.cwd() / "data")
 BASE_DIR = Path(os.getenv("BASE_DIR", _DEFAULT_BASE))
 TEMP_VOICE_DIR = BASE_DIR / "temp_voice"
 OUTPUT_DIR = BASE_DIR / "output"
+
+# ホストの声（誰が送ってもこの声でゲストのメッセージを読み上げる）
+HOST_VOICE_PATH = TEMP_VOICE_DIR / "host.wav"

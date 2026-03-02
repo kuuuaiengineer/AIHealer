@@ -11,6 +11,9 @@ httpx>=0.26.0
 # 音声処理
 pydub>=0.25.1
 
+# 音声合成（ボイスクローン）
+TTS>=0.22.0
+
 # Cloudinary
 cloudinary>=1.36.0
 

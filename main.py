@@ -33,6 +33,7 @@ from config import (
     LINE_CHANNEL_SECRET,
     TEMP_VOICE_DIR,
     OUTPUT_DIR,
+    HOST_VOICE_PATH,
 )
 from utils import (
     ensure_directories,
@@ -161,11 +162,10 @@ def _handle_audio(event: MessageEvent, input_suffix: str = ".m4a"):
     音声メッセージ受信時:
     1. LINE からバイナリを取得
     2. 音声ファイル → wav に変換
-    3. temp_voice/user_id.wav として保存（リファレンス音声登録）
+    3. host.wav として保存（ホストの声＝ゲストのメッセージを読み上げる声）
 
     input_suffix: 拡張子（.m4a, .mp3 等）。m4a 送信時は .m4a、ファイル送信時は fileName から取得
     """
-    user_id = event.source.user_id
     message_id = event.message.id
 
     try:
@@ -177,13 +177,13 @@ def _handle_audio(event: MessageEvent, input_suffix: str = ".m4a"):
             tmp.write(audio_bytes)
             input_path = Path(tmp.name)
 
-        ref_path = TEMP_VOICE_DIR / f"{user_id}.wav"
-        audio_to_wav(input_path, ref_path, format=None)
+        # ホストの声として保存（上書きで更新）
+        audio_to_wav(input_path, HOST_VOICE_PATH, format=None)
         input_path.unlink(missing_ok=True)
 
-        logger.info("Saved reference voice: %s", ref_path)
+        logger.info("Saved host voice: %s", HOST_VOICE_PATH)
 
-        reply_text = "音声を登録しました。テキストを送ると、その声で読み上げます。"
+        reply_text = "声を登録しました。ゲストがテキストを送ると、あなたの声で読み上げます。"
     except Exception as e:
         logger.exception("Audio processing error: %s", e)
         reply_text = "音声の処理に失敗しました。もう一度お試しください。"
@@ -194,26 +194,24 @@ def _handle_audio(event: MessageEvent, input_suffix: str = ".m4a"):
 def _handle_text(event: MessageEvent):
     """
     テキストメッセージ受信時:
-    1. user_id.wav を読み込み
-    2. TTS でテキストを合成
+    1. host.wav（ホストの声）を読み込み
+    2. TTS でテキストを合成（ホストの声でゲストのメッセージを読み上げ）
     3. Cloudinary にアップロード
     4. 音声 URL を LINE で返信
     """
-    user_id = event.source.user_id
     text = event.message.text
-    ref_path = TEMP_VOICE_DIR / f"{user_id}.wav"
 
     try:
-        if not ref_path.exists():
+        if not HOST_VOICE_PATH.exists():
             _reply_text(
                 event.reply_token,
-                "先に30秒程度の音声メッセージを送ってください。声を登録します。",
+                "ホストがまだ声を登録していません。ホストに30秒程度の音声を送ってもらってください。",
             )
             return
 
         ensure_directories()
         output_path = OUTPUT_DIR / "output.wav"
-        tts_engine.synthesize(text, ref_path, output_path)
+        tts_engine.synthesize(text, HOST_VOICE_PATH, output_path)
 
         url = upload_to_cloudinary(output_path, resource_type="video")
         duration_ms = get_audio_duration_ms(output_path)

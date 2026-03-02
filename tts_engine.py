@@ -1,69 +1,8 @@
 """
 音声合成エンジン（ボイスクローン）モジュール
 
-【モック実装】
-本モジュールは音声合成ライブラリの呼び出し枠組みを提供します。
-実際のクローン機能を使うには、以下のいずれかをセットアップしてください。
-
-================================================================================
-■ 推奨: OpenVoice のセットアップ手順（軽量・高精度）
-================================================================================
-1. インストール:
-   pip install openvoice-api  # または公式リポジトリから
-   # 公式: https://github.com/myshell-ai/OpenVoice
-
-2. OpenVoice は以下の依存が必要:
-   - torch, torchaudio
-   - 事前学習済みモデルのダウンロード（base_speakers 等）
-
-3. 使用例（実装イメージ）:
-   ```python
-   from openvoice import se_extractor
-   from openvoice.api import ToneColorConverter
-   from openvoice.api import BaseSpeakerTTS
-
-   # リファレンス音声からトーンカラーを抽出
-   target_se, audio_name = se_extractor.get_se(
-       reference_wav_path, ToneColorConverter, vad=True
-   )
-   # テキストを合成し、トーン変換
-   tts_model.tts(text, output_path, speaker='default', ...)
-   converter.convert(...)
-   ```
-
-4. 注意: OpenVoice はサーバーとして別プロセスで起動する構成も可能。
-   Railway のメモリ制限に注意（推奨: 512MB以上）。
-
-================================================================================
-■ 代替: GPT-SoVITS のセットアップ手順（高精度・やや重い）
-================================================================================
-1. GPT-SoVITS は主に API サーバーとして利用:
-   - 公式: https://github.com/RVC-Boss/GPT-SoVITS
-   - ローカルで API サーバーを起動し、HTTP でリクエスト
-
-2. API エンドポイント例:
-   POST /tts  (テキスト + リファレンス音声 → 合成音声)
-
-3. 使用例（実装イメージ）:
-   ```python
-   import httpx
-   response = httpx.post(
-       "http://gpt-sovits-server:9880/tts",
-       data={"text": text, "text_lang": "ja"},
-       files={"refer_wav": open(reference_path, "rb")},
-   )
-   with open(output_path, "wb") as f:
-       f.write(response.content)
-   ```
-
-4. Railway では GPT-SoVITS を別サービスとしてデプロイするか、
-   外部 API を利用する構成を推奨。
-
-================================================================================
-■ 本モックの置き換え方法
-================================================================================
-以下の `synthesize` メソッド内の「モック処理」部分を、
-上記のいずれかの実装に置き換えてください。
+Coqui TTS (XTTS-v2) を使用して、リファレンス音声の声質でテキストを読み上げる。
+日本語・英語など多言語に対応。
 """
 
 import logging
@@ -73,6 +12,37 @@ from config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
+# TTS モデル（遅延読み込み）
+_tts_model = None
+
+
+def _get_tts_model():
+    """TTS モデルを遅延読み込み。初回呼び出し時にダウンロード・読み込み。"""
+    global _tts_model
+    if _tts_model is None:
+        try:
+            from TTS.api import TTS
+
+            # XTTS-v2: 多言語対応、3秒の音声でクローン可能
+            # gpu=False で Railway 等の CPU 環境でも動作
+            _tts_model = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
+            logger.info("TTS model (XTTS-v2) loaded")
+        except Exception as e:
+            logger.exception("Failed to load TTS model: %s", e)
+            raise
+    return _tts_model
+
+
+def _detect_language(text: str) -> str:
+    """
+    テキストから言語を簡易判定。
+    日本語文字が含まれれば "ja"、それ以外は "en"。
+    """
+    for c in text:
+        if "\u3040" <= c <= "\u309f" or "\u30a0" <= c <= "\u30ff" or "\u4e00" <= c <= "\u9fff":
+            return "ja"
+    return "en"
+
 
 class TTSEngine:
     """
@@ -81,8 +51,7 @@ class TTSEngine:
     """
 
     def __init__(self):
-        """エンジンの初期化。必要に応じてモデル読み込み等を行う。"""
-        # TODO: OpenVoice / GPT-SoVITS のモデル読み込み
+        """エンジンの初期化。モデルは初回 synthesize 時に読み込む。"""
         pass
 
     def synthesize(
@@ -96,7 +65,7 @@ class TTSEngine:
 
         Args:
             text: 読み上げるテキスト
-            reference_wav_path: リファレンス音声（user_id.wav）のパス
+            reference_wav_path: リファレンス音声（host.wav）のパス
             output_path: 出力先パス。省略時は OUTPUT_DIR/output.wav
 
         Returns:
@@ -105,33 +74,29 @@ class TTSEngine:
         output_path = output_path or OUTPUT_DIR / "output.wav"
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-        # ========== モック処理（ここを実装に置き換える） ==========
-        # 実際の TTS エンジン呼び出し例:
-        #
-        # 【OpenVoice の場合】
-        # from openvoice.api import ...
-        # target_se, _ = se_extractor.get_se(str(reference_wav_path), ...)
-        # tts_model.tts(text, str(output_path), ...)
-        # converter.convert(...)
-        #
-        # 【GPT-SoVITS API の場合】
-        # import httpx
-        # resp = httpx.post(TTS_API_URL, data={"text": text}, files={"refer_wav": ...})
-        # output_path.write_bytes(resp.content)
-
-        # モック: リファレンス音声をそのままコピー（動作確認用）
-        import shutil
-
-        if reference_wav_path.exists():
-            shutil.copy(reference_wav_path, output_path)
-            logger.info("TTS mock: copied reference to %s", output_path)
-        else:
-            # リファレンスが無い場合は空の WAV を作成（エラー回避用）
+        if not reference_wav_path.exists():
+            logger.warning("Reference not found: %s", reference_wav_path)
             self._create_silent_wav(output_path)
-            logger.warning(
-                "TTS mock: reference not found, created silent wav at %s",
-                output_path,
+            return output_path
+
+        try:
+            tts = _get_tts_model()
+            language = _detect_language(text)
+
+            tts.tts_to_file(
+                text=text,
+                file_path=str(output_path),
+                speaker_wav=str(reference_wav_path),
+                language=language,
             )
+            logger.info("TTS synthesized: %s -> %s", text[:30], output_path)
+        except Exception as e:
+            logger.exception("TTS synthesis failed: %s", e)
+            # フォールバック: リファレンスをコピー（エラー時）
+            import shutil
+
+            shutil.copy(reference_wav_path, output_path)
+            logger.warning("Fallback: copied reference to %s", output_path)
 
         return output_path
 
